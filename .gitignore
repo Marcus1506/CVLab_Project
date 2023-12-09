@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Training test data should be name according to test*
+test*
+
 # C extensions
 *.so
 
