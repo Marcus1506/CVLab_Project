@@ -1,6 +1,6 @@
 import torch
-import onnx
 import os
+from torchmetrics.image import StructuralSimilarityIndexMeasure
 
 def load_model(model: torch.nn.Module, model_path: str, device: torch.device="cpu") -> torch.nn.Module:
     model.load_state_dict(torch.load(model_path))
@@ -21,3 +21,18 @@ def convert_to_onnx(model: torch.nn.Module, model_path: str) -> None:
                     training=torch.onnx.TrainingMode.TRAINING,
                     dynamic_axes={'input' : {0 : 'batch_size'},
                                 'output' : {0 : 'batch_size'}}, verbose=False)
+
+class MSE_SSIM(torch.nn.Module):
+    """
+    Calculates combined loss of MSE and SSIM.
+    """
+    def __init__(self, value_range: tuple[float], alpha: float=1., beta: float=1.):
+        super().__init__()
+        self.alpha = alpha
+        self.beta = beta
+        # Alpha and beta may need to be adjusted. SSIM is in range (-1, 1), MSE also if we use max normalization.
+        self.mse_loss = torch.nn.MSELoss()
+        self.ssim_loss = StructuralSimilarityIndexMeasure(data_range=value_range)
+    
+    def forward(self, output: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        return self.alpha * self.mse_loss(output, target) + self.beta * torch.abs(self.ssim_loss(output, target))
