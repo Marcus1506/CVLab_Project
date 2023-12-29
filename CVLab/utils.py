@@ -30,9 +30,10 @@ class MSE_SSIM(torch.nn.Module):
         super().__init__()
         self.alpha = alpha
         self.beta = beta
-        # Alpha and beta may need to be adjusted. SSIM is in range (-1, 1), MSE also if we use max normalization.
+        # Alpha and beta may need to be adjusted. SSIM is in range (-1, 1), MSE in (0, 1) if we use max normalization.
         self.mse_loss = torch.nn.MSELoss()
         self.ssim_loss = StructuralSimilarityIndexMeasure(data_range=value_range)
     
     def forward(self, output: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        return self.alpha * self.mse_loss(output, target) + self.beta * torch.abs(self.ssim_loss(output, target))
+        # 1 - SSIM because 1 represents perfect similarity.
+        return self.alpha * self.mse_loss(output, target) + self.beta * (1 - torch.abs(self.ssim_loss(output, target)))
