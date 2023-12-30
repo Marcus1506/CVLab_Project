@@ -26,11 +26,12 @@ class MSE_SSIM(torch.nn.Module):
     """
     Calculates combined loss of MSE and SSIM.
     """
-    def __init__(self, value_range: tuple[float], alpha: float=1., beta: float=1.):
+    def __init__(self, value_range: tuple[float, float], alpha: float=1., beta: float=1.):
         super().__init__()
         self.alpha = alpha
         self.beta = beta
         # Alpha and beta may need to be adjusted. SSIM is in range (-1, 1), MSE in (0, 1) if we use max normalization.
+        # TODO: Unnormalize for SSIM!
         self.mse_loss = torch.nn.MSELoss()
         self.ssim_loss = StructuralSimilarityIndexMeasure(data_range=value_range)
     

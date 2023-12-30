@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+data/*
 
 # Training test data should be name according to test*
 test*

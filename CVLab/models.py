@@ -193,6 +193,7 @@ class UNet3plus(Base_Class):
                 print(f"First {i} convolutions of encoder initialized with pretrained weights.")
                 break
         
+        # Comparing loaded weights and initialized model weights 
         test_init = [torch.allclose(vgg16_conv_modules[j].weight.data, [module.weight.data for module in self.encoder.modules() if isinstance(module, torch.nn.Conv2d)][j]) for j in range(i)]
         if all(test_init):
             print("Test passed.")
