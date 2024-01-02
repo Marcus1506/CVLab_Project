@@ -4,8 +4,8 @@ __pycache__/
 *$py.class
 data/*
 
-# Training test data should be name according to test*
-test*
+# ignore model files because they are too large
+models/*
 
 # C extensions
 *.so
