@@ -25,15 +25,15 @@ if __name__ == "__main__":
             
             fig, axs = plt.subplots(1, 3, figsize=(10, 5))
             
-            axs[0].imshow(input_image, vmin=0, vmax=1)
+            axs[0].imshow(input_image, vmin=0, vmax=1, cmap='gray')
             axs[0].set_title("Focal length 0 AOS input")
             axs[0].axis('off')
             
-            axs[1].imshow(pred, vmin=0, vmax=1)
+            axs[1].imshow(pred, vmin=0, vmax=1, cmap='gray')
             axs[1].set_title("Prediction")
             axs[1].axis('off')
             
-            axs[2].imshow(truth, vmin=0, vmax=1)
+            axs[2].imshow(truth, vmin=0, vmax=1, cmap='gray')
             axs[2].set_title("Truth")
             axs[2].axis('off')
             
