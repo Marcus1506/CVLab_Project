@@ -34,17 +34,17 @@ class MSE_SSIM(torch.nn.Module):
     """
     Calculates combined loss of MSE and SSIM.
     """
-    def __init__(self, value_range: tuple[float, float], alpha: float=1., beta: float=1.):
+    def __init__(self, value_range: tuple[float, float], alpha: float=1., beta: float=1., device: torch.device="cuda"):
         super().__init__()
         self.alpha = alpha
         self.beta = beta
         # Alpha and beta may need to be adjusted. SSIM is in range (-1, 1), MSE in (0, 1) if we use max normalization.
         self.mse_loss = torch.nn.MSELoss()
-        self.ssim_loss = StructuralSimilarityIndexMeasure(data_range=value_range)
+        self.ssim_loss = StructuralSimilarityIndexMeasure(data_range=value_range).to(device)
     
     def forward(self, output: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        # 1 - SSIM because 1 represents perfect similarity.
-        return self.alpha * self.mse_loss(output, target) + self.beta * (1 - torch.abs(self.ssim_loss(output, target)))
+        # 1 - SSIM because 1 represents perfect similarity. So the loss is in the range (0, 3)
+        return self.alpha * self.mse_loss(output, target) + self.beta * (1 - self.ssim_loss(output, target))
 
 class Monitoring:
     """
@@ -195,6 +195,106 @@ def std_training_loop(
                 eval_batch = eval_batch.to(device, non_blocking=pin_memory)
                 target_batch = target_batch.to(device, non_blocking=pin_memory)
                 pred = model(eval_batch)
+                loss = loss_function(pred, target_batch)
+                eval_minibatch_losses.append(loss.detach().cpu())
+
+        eval_loss = torch.mean(torch.stack(eval_minibatch_losses).cpu())
+        train_loss = torch.mean(torch.stack(train_minibatch_losses).cpu())
+
+        train_monitoring.step(eval_loss, train_loss)
+        # scheduler.step(eval_loss)
+        if early_stopping:
+            if train_monitoring.exit_training:
+                break
+
+    train_monitoring.finish_training()
+    return
+
+def std_training_loop_tuple(
+        model: torch.nn.Module, train_data: torch.utils.data.Dataset, val_data: torch.utils.data.Dataset, num_epochs: int,
+        model_name: str, optimizer: torch.optim.Optimizer, loss_function: torch.nn.Module, minibatch_size: int=16,
+        collate_func: None | Callable[[torch.Tensor], torch.Tensor]=None, show_progress: bool = False, try_cuda: bool=False, early_stopping: bool=True,
+        patience: int=3, model_path: str="models", losses_path: str="losses", workers: int=0,
+        pin_memory: bool=True, prefetch_factor: int=2, true_random: bool=True
+        ) -> None:
+
+    # Set device
+    device = torch.device("cuda" if torch.cuda.is_available() and try_cuda else "cpu")
+    print(device)
+    model.to(device)
+    
+    train_monitoring = Monitoring(model, model_name, model_path, losses_path, patience, device)
+
+    if true_random:
+        rng = np.random.default_rng()
+        seed = rng.integers(0, 2**16 - 1, dtype=int)
+    else:
+        seed = 42
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    random.seed(seed)
+
+    train_dataloader = DataLoader(train_data, collate_fn=collate_func, batch_size=minibatch_size,
+                                  shuffle=True, num_workers=workers, pin_memory=pin_memory, prefetch_factor=prefetch_factor)
+    # a little less workers for eval is generally good in most cases
+    eval_dataloader = DataLoader(val_data, collate_fn=collate_func, batch_size=minibatch_size,
+                                  shuffle=True, num_workers=(workers + 2) // 2, pin_memory=pin_memory, prefetch_factor=prefetch_factor)
+
+    # scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.1, patience=patience // 2)
+
+    # One Epoch on both datasets just to compare
+    model.eval()
+    mock_train_losses = []
+    mock_eval_losses = []
+    with torch.no_grad():
+        for input_batch, target_batch in tqdm(train_dataloader, disable=not show_progress, leave=False):
+            image_batch, temp_batch = input_batch
+            image_batch = image_batch.to(device, non_blocking=pin_memory)
+            temp_batch = temp_batch.to(device, non_blocking=pin_memory)
+            target_batch = target_batch.to(device, non_blocking=pin_memory)
+            pred = model(image_batch, temp_batch)
+            loss = loss_function(pred, target_batch)
+            mock_train_losses.append(loss.detach().cpu())
+    
+    with torch.no_grad():
+        for input_batch, target_batch in tqdm(eval_dataloader, disable=not show_progress, leave=False):
+            image_batch, temp_batch = input_batch
+            image_batch = image_batch.to(device, non_blocking=pin_memory)
+            temp_batch = temp_batch.to(device, non_blocking=pin_memory)
+            target_batch = target_batch.to(device, non_blocking=pin_memory)
+            pred = model(image_batch, temp_batch)
+            loss = loss_function(pred, target_batch)
+            mock_eval_losses.append(loss.detach().cpu())
+    
+    train_monitoring.step(torch.mean(torch.stack(mock_eval_losses).cpu()), torch.mean(torch.stack(mock_train_losses).cpu()))
+    
+    for epoch in tqdm(range(num_epochs), disable=not show_progress):
+        # set model to training mode
+        model.train()
+        train_minibatch_losses = []
+        for input_batch, target_batch in tqdm(train_dataloader, disable=not show_progress, leave=False):
+            image_batch, temp_batch = input_batch
+            image_batch = image_batch.to(device, non_blocking=pin_memory)
+            temp_batch = temp_batch.to(device, non_blocking=pin_memory)
+            target_batch = target_batch.to(device, non_blocking=pin_memory)
+
+            model.zero_grad()
+            pred = model(image_batch, temp_batch)
+            loss = loss_function(pred, target_batch)
+            loss.backward()
+            optimizer.step()
+            train_minibatch_losses.append(loss.detach().cpu())
+
+        eval_minibatch_losses = []
+        model.eval()
+        with torch.no_grad():
+            for input_batch, target_batch in tqdm(eval_dataloader, disable=not show_progress, leave=False):
+                image_batch, temp_batch = input_batch
+                image_batch = image_batch.to(device, non_blocking=pin_memory)
+                temp_batch = temp_batch.to(device, non_blocking=pin_memory)
+                target_batch = target_batch.to(device, non_blocking=pin_memory)
+                pred = model(image_batch, temp_batch)
+                loss = loss_function(pred, target_batch)
                 loss = loss_function(pred, target_batch)
                 eval_minibatch_losses.append(loss.detach().cpu())
 

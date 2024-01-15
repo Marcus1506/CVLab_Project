@@ -6,6 +6,7 @@
 
 Besides the standard dependencies like Pytorch with Cuda support we also used the following packages:
 
+- matplotlib: `conda install matplotlib`
 - tqdm: `conda install tqdm`
 - OpenCV: `conda install -c conda-forge opencv`
 - torchmetrics: `conda install -c conda-forge torchmetrics`

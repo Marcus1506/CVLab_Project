@@ -3,9 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 data/*
+!data
+models_third/*
+!models_third
 
 # ignore model files because they are too large
 models/*
+!models
 
 # C extensions
 *.so

@@ -8,5 +8,6 @@ def save_losses(training_losses: list[float], eval_losses: list[float], path: st
     epochs = len(training_losses)
     plt.plot(range(epochs), training_losses, label='Train loss')
     plt.plot(range(epochs), eval_losses, label='Evaluation loss')
+    plt.yscale('log')
     plt.ylabel('Loss'); plt.xlabel('Epoch')
     plt.grid(); plt.legend(); plt.savefig(path + ".png", dpi=300)

@@ -200,6 +200,40 @@ class UNet3plus(Base_Class):
         else:
             print("Test failed.")
 
+class GModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv = torch.nn.Conv2d(4, 4, kernel_size=3, padding=1)
+
+    def forward(self, image: torch.Tensor, temp: torch.Tensor) -> torch.Tensor:
+        temp = temp.view(-1, 1, 1, 1)
+        temp = temp.expand(-1, 1, image.shape[2], image.shape[3])
+        forward = torch.concat([image, temp], dim=1)
+        forward = self.conv(forward)
+        return forward
+
+class GUNET3plus(torch.nn.Module):
+
+    def __init__(self, input_dim: int, output_dim: int, norm: str='batch', activation: str='relu', **kwargs):
+        super().__init__()
+        self.unet = UNet3plus(input_dim, output_dim, norm, activation, **kwargs)
+        self.GM = GModule()
+        self.informed_conv = torch.nn.Conv2d(5, 1, kernel_size=3, padding=1)
+    
+    def forward(self, image: torch.Tensor, temp: torch.Tensor) -> torch.Tensor:
+        unet_out = self.unet(image)
+        gm_out = self.GM(image, temp)
+        informed_conv_out = self.informed_conv(torch.concat([unet_out, gm_out], dim=1))
+        return informed_conv_out
+
+
+
+
+
+
+
+
+
 
 
 
