@@ -153,15 +153,15 @@ def std_training_loop(
 
     # One Epoch on both datasets just to compare
     model.eval()
-    mock_train_losses = []
-    mock_eval_losses = []
+    mock_train_batch_losses = []
+    mock_eval_batch_losses = []
     with torch.no_grad():
         for train_batch, target_batch in tqdm(train_dataloader, disable=not show_progress, leave=False):
             train_batch = train_batch.to(device, non_blocking=pin_memory)
             target_batch = target_batch.to(device, non_blocking=pin_memory)
             pred = model(train_batch)
             loss = loss_function(pred, target_batch)
-            mock_train_losses.append(loss.detach().cpu())
+            mock_train_batch_losses.append(loss.detach().cpu())
     
     with torch.no_grad():
         for eval_batch, target_batch in tqdm(eval_dataloader, disable=not show_progress, leave=False):
@@ -169,14 +169,14 @@ def std_training_loop(
             target_batch = target_batch.to(device, non_blocking=pin_memory)
             pred = model(eval_batch)
             loss = loss_function(pred, target_batch)
-            mock_eval_losses.append(loss.detach().cpu())
+            mock_eval_batch_losses.append(loss.detach().cpu())
     
-    train_monitoring.step(torch.mean(torch.stack(mock_eval_losses).cpu()), torch.mean(torch.stack(mock_train_losses).cpu()))
+    train_monitoring.step(torch.mean(torch.stack(mock_eval_batch_losses).cpu()), torch.mean(torch.stack(mock_train_batch_losses).cpu()))
     
     for epoch in tqdm(range(num_epochs), disable=not show_progress):
         # set model to training mode
         model.train()
-        train_minibatch_losses = []
+        train_batch_losses = []
         for train_batch, target_batch in tqdm(train_dataloader, disable=not show_progress, leave=False):
             train_batch = train_batch.to(device, non_blocking=pin_memory)
             target_batch = target_batch.to(device, non_blocking=pin_memory)
@@ -186,9 +186,9 @@ def std_training_loop(
             loss = loss_function(pred, target_batch)
             loss.backward()
             optimizer.step()
-            train_minibatch_losses.append(loss.detach().cpu())
+            train_batch_losses.append(loss.detach().cpu())
 
-        eval_minibatch_losses = []
+        eval_batch_losses = []
         model.eval()
         with torch.no_grad():
             for eval_batch, target_batch in tqdm(eval_dataloader, disable=not show_progress, leave=False):
@@ -196,10 +196,10 @@ def std_training_loop(
                 target_batch = target_batch.to(device, non_blocking=pin_memory)
                 pred = model(eval_batch)
                 loss = loss_function(pred, target_batch)
-                eval_minibatch_losses.append(loss.detach().cpu())
+                eval_batch_losses.append(loss.detach().cpu())
 
-        eval_loss = torch.mean(torch.stack(eval_minibatch_losses).cpu())
-        train_loss = torch.mean(torch.stack(train_minibatch_losses).cpu())
+        eval_loss = torch.mean(torch.stack(eval_batch_losses).cpu())
+        train_loss = torch.mean(torch.stack(train_batch_losses).cpu())
 
         train_monitoring.step(eval_loss, train_loss)
         # scheduler.step(eval_loss)
@@ -210,9 +210,42 @@ def std_training_loop(
     train_monitoring.finish_training()
     return
 
+def train_tuple(
+        model: torch.nn.Module, Dataloader: torch.utils.data.DataLoader, loss_function: torch.nn.Module,
+        show_progress: bool, device: torch.device, pin_memory: bool, accumulation_steps: int=1,
+        optimizer: torch.optim.Optimizer|None=None
+        ) -> list[torch.Tensor]:
+    minibatch_losses = []
+    if optimizer:
+        model.train()
+        for minibatch_count, (input_batch, target_batch) in tqdm(enumerate(Dataloader), disable=not show_progress, leave=False):
+            input_images, input_temps = input_batch
+            input_images = input_images.to(device, non_blocking=pin_memory)
+            input_temps = input_temps.to(device, non_blocking=pin_memory)
+            target_batch = target_batch.to(device, non_blocking=pin_memory)
+            pred = model(input_images, input_temps)
+            loss = loss_function(pred, target_batch) / accumulation_steps
+            loss.backward()
+            if minibatch_count + 1 % accumulation_steps == 0:
+                optimizer.zero_grad()
+                optimizer.step()
+            minibatch_losses.append(loss.detach().cpu())
+    if optimizer is None:
+        model.eval()
+        with torch.no_grad():
+            for input_batch, target_batch in tqdm(Dataloader, disable=not show_progress, leave=False):
+                input_images, input_temps = input_batch
+                input_images = input_images.to(device, non_blocking=pin_memory)
+                input_temps = input_temps.to(device, non_blocking=pin_memory)
+                target_batch = target_batch.to(device, non_blocking=pin_memory)
+                pred = model(input_images, input_temps)
+                loss = loss_function(pred, target_batch)
+                minibatch_losses.append(loss.detach().cpu())
+    return minibatch_losses
+
 def std_training_loop_tuple(
         model: torch.nn.Module, train_data: torch.utils.data.Dataset, val_data: torch.utils.data.Dataset, num_epochs: int,
-        model_name: str, optimizer: torch.optim.Optimizer, loss_function: torch.nn.Module, minibatch_size: int=16,
+        model_name: str, optimizer: torch.optim.Optimizer, loss_function: torch.nn.Module, minibatch_size: int=16, accumulation_steps: int=1,
         collate_func: None | Callable[[torch.Tensor], torch.Tensor]=None, show_progress: bool = False, try_cuda: bool=False, early_stopping: bool=True,
         patience: int=3, model_path: str="models", losses_path: str="losses", workers: int=0,
         pin_memory: bool=True, prefetch_factor: int=2, true_random: bool=True
@@ -243,63 +276,17 @@ def std_training_loop_tuple(
     # scheduler = ReduceLROnPlateau(optimizer, mode="min", factor=0.1, patience=patience // 2)
 
     # One Epoch on both datasets just to compare
-    model.eval()
-    mock_train_losses = []
-    mock_eval_losses = []
-    with torch.no_grad():
-        for input_batch, target_batch in tqdm(train_dataloader, disable=not show_progress, leave=False):
-            image_batch, temp_batch = input_batch
-            image_batch = image_batch.to(device, non_blocking=pin_memory)
-            temp_batch = temp_batch.to(device, non_blocking=pin_memory)
-            target_batch = target_batch.to(device, non_blocking=pin_memory)
-            pred = model(image_batch, temp_batch)
-            loss = loss_function(pred, target_batch)
-            mock_train_losses.append(loss.detach().cpu())
+    mock_train_batch_losses = train_tuple(model, train_dataloader, loss_function, show_progress, device, pin_memory, accumulation_steps=accumulation_steps)
+    mock_eval_batch_losses = train_tuple(model, eval_dataloader, loss_function, show_progress, device, pin_memory, accumulation_steps=accumulation_steps)
     
-    with torch.no_grad():
-        for input_batch, target_batch in tqdm(eval_dataloader, disable=not show_progress, leave=False):
-            image_batch, temp_batch = input_batch
-            image_batch = image_batch.to(device, non_blocking=pin_memory)
-            temp_batch = temp_batch.to(device, non_blocking=pin_memory)
-            target_batch = target_batch.to(device, non_blocking=pin_memory)
-            pred = model(image_batch, temp_batch)
-            loss = loss_function(pred, target_batch)
-            mock_eval_losses.append(loss.detach().cpu())
-    
-    train_monitoring.step(torch.mean(torch.stack(mock_eval_losses).cpu()), torch.mean(torch.stack(mock_train_losses).cpu()))
+    train_monitoring.step(torch.mean(torch.stack(mock_eval_batch_losses)), torch.mean(torch.stack(mock_train_batch_losses)))
     
     for epoch in tqdm(range(num_epochs), disable=not show_progress):
-        # set model to training mode
-        model.train()
-        train_minibatch_losses = []
-        for input_batch, target_batch in tqdm(train_dataloader, disable=not show_progress, leave=False):
-            image_batch, temp_batch = input_batch
-            image_batch = image_batch.to(device, non_blocking=pin_memory)
-            temp_batch = temp_batch.to(device, non_blocking=pin_memory)
-            target_batch = target_batch.to(device, non_blocking=pin_memory)
+        train_batch_losses = train_tuple(model, train_dataloader, loss_function, show_progress, device, pin_memory, optimizer, accumulation_steps)
+        eval_batch_losses = train_tuple(model, eval_dataloader, loss_function, show_progress, device, pin_memory, accumulation_steps=accumulation_steps)
 
-            model.zero_grad()
-            pred = model(image_batch, temp_batch)
-            loss = loss_function(pred, target_batch)
-            loss.backward()
-            optimizer.step()
-            train_minibatch_losses.append(loss.detach().cpu())
-
-        eval_minibatch_losses = []
-        model.eval()
-        with torch.no_grad():
-            for input_batch, target_batch in tqdm(eval_dataloader, disable=not show_progress, leave=False):
-                image_batch, temp_batch = input_batch
-                image_batch = image_batch.to(device, non_blocking=pin_memory)
-                temp_batch = temp_batch.to(device, non_blocking=pin_memory)
-                target_batch = target_batch.to(device, non_blocking=pin_memory)
-                pred = model(image_batch, temp_batch)
-                loss = loss_function(pred, target_batch)
-                loss = loss_function(pred, target_batch)
-                eval_minibatch_losses.append(loss.detach().cpu())
-
-        eval_loss = torch.mean(torch.stack(eval_minibatch_losses).cpu())
-        train_loss = torch.mean(torch.stack(train_minibatch_losses).cpu())
+        eval_loss = torch.mean(torch.stack(eval_batch_losses))
+        train_loss = torch.mean(torch.stack(train_batch_losses))
 
         train_monitoring.step(eval_loss, train_loss)
         # scheduler.step(eval_loss)

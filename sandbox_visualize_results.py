@@ -8,10 +8,10 @@ if __name__ == "__main__":
     # model = CVLab.models.UNet(3, 1, True, conv_down=True)
     model = CVLab.models.GUNET3plus(3, 1, norm='batch', activation='leakyrelu', conv_down=False)
     
-    model.load_state_dict(torch.load('models_third/test_third_model_guided_transfer_batch8_leaky_extended.pt'))
+    model.load_state_dict(torch.load('models_extensive/guided_transfer_batch8_leaky_full_extensive.pt'))
     
     # dataset_test = CVLab.data.CustomDataset("data/third_data_split/Test")
-    dataset_test = CVLab.data.Guided_Dataset("data/third_data_split/Test")
+    dataset_test = CVLab.data.Guided_Dataset("data/whole_data_split/Test")
     
     number_of_images = 10
     

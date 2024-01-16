@@ -6,6 +6,8 @@ data/*
 !data
 models_third/*
 !models_third
+models_extensive/*
+!models_extensive
 
 # ignore model files because they are too large
 models/*
