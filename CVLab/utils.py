@@ -282,8 +282,8 @@ def std_training_loop_tuple(
     train_monitoring.step(torch.mean(torch.stack(mock_eval_batch_losses)), torch.mean(torch.stack(mock_train_batch_losses)))
     
     for epoch in tqdm(range(num_epochs), disable=not show_progress):
-        train_batch_losses = train_tuple(model, train_dataloader, loss_function, show_progress, device, pin_memory, optimizer, accumulation_steps)
-        eval_batch_losses = train_tuple(model, eval_dataloader, loss_function, show_progress, device, pin_memory, accumulation_steps=accumulation_steps)
+        train_batch_losses = train_tuple(model, train_dataloader, loss_function, show_progress, device, pin_memory, accumulation_steps, optimizer)
+        eval_batch_losses = train_tuple(model, eval_dataloader, loss_function, show_progress, device, pin_memory, accumulation_steps)
 
         eval_loss = torch.mean(torch.stack(eval_batch_losses))
         train_loss = torch.mean(torch.stack(train_batch_losses))
