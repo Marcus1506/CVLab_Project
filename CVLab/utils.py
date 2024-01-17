@@ -124,8 +124,9 @@ def train_tuple(
         optimizer: torch.optim.Optimizer|None=None
         ) -> list[torch.Tensor]:
     minibatch_losses = []
-    if optimizer:
+    if optimizer is not None:
         model.train()
+        # This implementation is not optimal, since it does not allow for parallelization over accumulation steps.
         for minibatch_count, (input_batch, target_batch) in enumerate(tqdm(Dataloader, disable=not show_progress, leave=False)):
             input_images, input_temps = input_batch
             input_images = input_images.to(device, non_blocking=pin_memory)
@@ -134,11 +135,11 @@ def train_tuple(
             pred = model(input_images, input_temps)
             loss = loss_function(pred, target_batch) / accumulation_steps
             loss.backward()
-            if minibatch_count + 1 % accumulation_steps == 0:
-                optimizer.zero_grad()
+            if (minibatch_count + 1) % accumulation_steps == 0:
                 optimizer.step()
+                optimizer.zero_grad()
             minibatch_losses.append(loss.detach().cpu())
-    if optimizer is None:
+    elif optimizer is None:
         model.eval()
         with torch.no_grad():
             for input_batch, target_batch in tqdm(Dataloader, disable=not show_progress, leave=False):

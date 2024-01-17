@@ -8,6 +8,8 @@ models_third/*
 !models_third
 models_extensive/*
 !models_extensive
+models_finetuned/*
+!models_finetuned
 
 # ignore model files because they are too large
 models/*

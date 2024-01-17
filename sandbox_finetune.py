@@ -21,10 +21,10 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr=0.00001)
 
     loss = torch.nn.MSELoss()
-    # loss = CVLab.utils.MSE_SSIM((0, 1), 1., 0.125)
+    # loss = CVLab.utils.MSE_SSIM((0, 1), 0.5, 0.25)
 
     CVLab.utils.std_training_loop_tuple(
-        model, train_data=dataset_train, val_data=dataset_eval, num_epochs=20, model_name="guided_transfer_batch8_leaky_full_extensive_finetuned32_MSE",
-        optimizer=optimizer, loss_function=loss, minibatch_size=8, accumulation_steps=4, show_progress=True, try_cuda=True, early_stopping=True,
+        model, train_data=dataset_train, val_data=dataset_eval, num_epochs=20, model_name="guided_transfer_batch8_leaky_full_extensive_finetuned128_MSE",
+        optimizer=optimizer, loss_function=loss, minibatch_size=8, accumulation_steps=16, show_progress=True, try_cuda=True, early_stopping=True,
         patience=10, model_path="models_finetuned", losses_path="losses", workers=4, pin_memory=True, prefetch_factor=3, true_random=True
         )
