@@ -67,5 +67,6 @@ if __name__ == "__main__":
             axs[2].axis('off')
             
             plt.savefig(f"auxiliary_images/finetuned/GUNET3plus_finetuned_{i}.png")
+            plt.close()
             if i == number_of_images:
                 break
