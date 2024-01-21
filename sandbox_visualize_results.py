@@ -2,6 +2,14 @@ import torch
 import CVLab
 import matplotlib.pyplot as plt
 
+def psnr(true_image, pred_image):
+    mse = torch.mean((true_image - pred_image) ** 2)
+    if mse == 0:
+        return float('inf')
+    max_pixel = 1.0
+    psnr = 20 * torch.log10(max_pixel / torch.sqrt(mse))
+    return psnr.item()
+
 if __name__ == "__main__":
     
     # model = CVLab.models.UNet3plus(3, 1, norm='batch', activation='leakyrelu', conv_down=False)
@@ -52,6 +60,8 @@ if __name__ == "__main__":
             pred = pred.squeeze().cpu().numpy()
             truth = test_target_batch.squeeze().cpu().numpy()
             
+            psnr_value = psnr(torch.tensor(truth), torch.tensor(pred))
+
             fig, axs = plt.subplots(1, 3, figsize=(10, 5))
             
             axs[0].imshow(input_image, vmin=0, vmax=1, cmap='gray')
@@ -59,7 +69,7 @@ if __name__ == "__main__":
             axs[0].axis('off')
             
             axs[1].imshow(pred, vmin=0, vmax=1, cmap='gray')
-            axs[1].set_title("Prediction")
+            axs[1].set_title(f"Prediction: PSNR={psnr_value:.2f}")
             axs[1].axis('off')
             
             axs[2].imshow(truth, vmin=0, vmax=1, cmap='gray')
