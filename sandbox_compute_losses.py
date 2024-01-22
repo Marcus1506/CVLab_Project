@@ -11,7 +11,7 @@ if __name__ == "__main__":
     dataset_test = CVLab.data.Guided_Dataset("data/whole_data_split/Test")
 
     model = CVLab.models.GUNET3plus(3, 1, norm='batch', activation='leakyrelu', conv_down=False)
-    model.load_state_dict(torch.load('models_finetuned/guided_transfer_batch8_leaky_full_extensive_finetuned128_MSESSIM_0.5_0.25.pt'))
+    model.load_state_dict(torch.load('models_finetuned/guided_transfer_batch8_leaky_full_extensive_finetuned128_MSESSIM_0.5_0.25_bettermonitored.pt'))
 
     mse = torch.nn.MSELoss()
     mse_ssim = CVLab.utils.MSE_SSIM((0, 1), 0.5, 0.25)

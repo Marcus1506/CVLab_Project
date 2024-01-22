@@ -6,9 +6,9 @@ if __name__ == "__main__":
     # dataset_eval = CVLab.data.CustomDataset("data/third_data_split/Eval")
     # dataset_test = CVLab.data.CustomDataset("data/third_data_split/Test")
 
-    dataset_train = CVLab.data.Guided_Dataset("data/mock_data_split/Train")
-    dataset_eval = CVLab.data.Guided_Dataset("data/mock_data_split/Eval")
-    dataset_test = CVLab.data.Guided_Dataset("data/mock_data_split/Test")
+    dataset_train = CVLab.data.Guided_Dataset("data/third_data_split/Train")
+    dataset_eval = CVLab.data.Guided_Dataset("data/third_data_split/Eval")
+    dataset_test = CVLab.data.Guided_Dataset("data/third_data_split/Test")
 
 
     # model = CVLab.models.UNet3plus(3, 1, norm='batch', activation='leakyrelu', conv_down=False)
@@ -25,6 +25,6 @@ if __name__ == "__main__":
 
     CVLab.utils.std_training_loop_tuple(
         model, train_data=dataset_train, val_data=dataset_eval, num_epochs=100, model_name="debug_guided_transfer_batch8_leaky",
-        optimizer=optimizer, loss_function=loss, minibatch_size=8, accumulation_steps=4, show_progress=True, try_cuda=True, early_stopping=True,
+        optimizer=optimizer, loss_function=loss, minibatch_size=8, accumulation_steps=16, show_progress=True, try_cuda=True, early_stopping=True,
         patience=5, model_path="models", losses_path="losses", workers=4, pin_memory=True, prefetch_factor=3, true_random=True
         )

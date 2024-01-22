@@ -133,12 +133,12 @@ def train_tuple(
             input_temps = input_temps.to(device, non_blocking=pin_memory)
             target_batch = target_batch.to(device, non_blocking=pin_memory)
             pred = model(input_images, input_temps)
-            loss = loss_function(pred, target_batch) / accumulation_steps
+            loss = loss_function(pred, target_batch) / accumulation_steps # we need this because it will just accumulate on backwards
             loss.backward()
             if (minibatch_count + 1) % accumulation_steps == 0:
                 optimizer.step()
                 optimizer.zero_grad()
-            minibatch_losses.append(loss.detach().cpu())
+            minibatch_losses.append(loss.detach().cpu() * accumulation_steps)
     elif optimizer is None:
         model.eval()
         with torch.no_grad():
