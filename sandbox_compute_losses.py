@@ -5,13 +5,21 @@ This file is for computing losses of the final model on the different datasets.
 import torch
 import CVLab
 
+def psnr(true_image, pred_image):
+    mse = torch.mean((true_image - pred_image) ** 2)
+    if mse == 0:
+        return float('inf')
+    max_pixel = 1.0
+    psnr = 20 * torch.log10(max_pixel / torch.sqrt(mse))
+    return psnr
+
 if __name__ == "__main__":
     dataset_train = CVLab.data.Guided_Dataset("data/whole_data_split/Train")
     dataset_eval = CVLab.data.Guided_Dataset("data/whole_data_split/Eval")
     dataset_test = CVLab.data.Guided_Dataset("data/whole_data_split/Test")
 
     model = CVLab.models.GUNET3plus(3, 1, norm='batch', activation='leakyrelu', conv_down=False)
-    model.load_state_dict(torch.load('models_finetuned/guided_transfer_batch8_leaky_full_extensive_finetuned128_MSESSIM_0.5_0.25_bettermonitored.pt'))
+    model.load_state_dict(torch.load('models_finetuned/guided_transfer_batch8_leaky_full_extensive_finetuned128_MSESSIM_0.5_0.25.pt'))
 
     mse = torch.nn.MSELoss()
     mse_ssim = CVLab.utils.MSE_SSIM((0, 1), 0.5, 0.25)
@@ -30,6 +38,9 @@ if __name__ == "__main__":
     eval_loss_mse_ssim = CVLab.utils.train_tuple(model, dataloader_eval, mse_ssim, True, torch.device("cuda"), True, 1, None)
     test_loss_mse_ssim = CVLab.utils.train_tuple(model, dataloader_test, mse_ssim, True, torch.device("cuda"), True, 1, None)
 
+    test_loss_psnr = CVLab.utils.train_tuple(model, dataloader_test, psnr, True, torch.device("cuda"), True, 1, None)
+    test_loss_psnr = torch.mean(torch.stack(test_loss_psnr))
+
     train_loss_mse = torch.mean(torch.stack(train_loss_mse))
     eval_loss_mse = torch.mean(torch.stack(eval_loss_mse))
     test_loss_mse = torch.mean(torch.stack(test_loss_mse))
@@ -46,3 +57,4 @@ if __name__ == "__main__":
         f.write(f"Train loss MSE SSIM: {train_loss_mse_ssim}\n")
         f.write(f"Eval loss MSE SSIM: {eval_loss_mse_ssim}\n")
         f.write(f"Test loss MSE SSIM: {test_loss_mse_ssim}\n")
+        f.write(f"Test loss PSNR: {test_loss_psnr}\n")
